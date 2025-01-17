@@ -1,19 +1,10 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 
-const container = document.getElementById('root') as HTMLElement;
-const root = createRoot(container);
-root.render(<App />);
-
-// Add this flag
-let ipcPingSent = false;
-
-// Modify the IPC ping code
-if (!ipcPingSent) {
-  window.electron.ipcRenderer.once('ipc-example', (arg) => {
-    // eslint-disable-next-line no-console
-    console.log(arg);
-  });
-  window.electron.ipcRenderer.sendMessage('ipc-example', ['ping']);
-  ipcPingSent = true;
+const container = document.getElementById('root');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+} else {
+  console.error('Root element not found');
 }

@@ -19,6 +19,9 @@ import { resolveHtmlPath } from './util';
 import Store from 'electron-store';
 import fs from 'fs';
 import { pluginManager } from './pluginManager';
+import { serviceRegistry } from './serviceRegistry';
+import { computerVisionService } from './computerVision';
+import { anthropicService } from './store/anthropic'; // Add this import
 
 class AppUpdater {
   constructor() {
@@ -137,6 +140,9 @@ const createWindow = async () => {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
     },
   });
 
@@ -225,6 +231,13 @@ const createWindow = async () => {
       event.reply('install-plugin-response', false);
     }
   });
+
+  // Add this new IPC handler for services
+  ipcMain.on('get-services', (event) => {
+    const services = serviceRegistry.getServices();
+    log.info(`Sending services to renderer. Count: ${services.length}`);
+    event.reply('get-services-response', services);
+  });
 };
 
 /**
@@ -242,12 +255,24 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
+    // Register services
+    serviceRegistry.register('computerVision', computerVisionService);
+    serviceRegistry.register('anthropic', anthropicService); // Add this line
+    log.info('Services registered in whenReady');
+
     createWindow();
-    pluginManager.loadPlugins(); // Add this line
+    pluginManager.loadPlugins();
     app.on('activate', () => {
-      // On macOS it's common to re-create a window in the app when the
-      // dock icon is clicked and there are no other windows open.
       if (mainWindow === null) createWindow();
+    });
+
+    // Add this to log the registered services and their functions
+    const registeredServices = serviceRegistry.getAll();
+    log.info('Registered services:', registeredServices);
+
+    // Add an IPC handler to get services
+    ipcMain.handle('get-services', () => {
+      return serviceRegistry.getAll();
     });
   })
   .catch(console.log);

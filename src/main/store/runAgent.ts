@@ -5,7 +5,7 @@ import {
 import { Button, Key, keyboard, mouse, Point } from '@nut-tree-fork/nut-js';
 // import { createCanvas, loadImage } from 'canvas';
 import { desktopCapturer, screen } from 'electron';
-import { anthropic } from './anthropic';
+import { serviceRegistry } from '../serviceRegistry';
 import { AppState, NextAction } from './types';
 import { extractAction } from './extractAction';
 import log from 'electron-log';
@@ -82,16 +82,21 @@ const promptForAction = async (
   runHistory: BetaMessageParam[],
   systemPrompt: string
 ): Promise<BetaMessageParam> => {
-  // Strip images from all but the last message
+  // Strip images from all but the last message and remove unnecessary fields
   const historyWithoutImages = runHistory.map((msg, index) => {
-    if (index === runHistory.length - 1) return msg; // Keep the last message intact
+    if (index === runHistory.length - 1) {
+      // Keep the last message intact, but remove unnecessary fields
+      const { role, content } = msg;
+      return { role, content };
+    }
     if (Array.isArray(msg.content)) {
       return {
-        ...msg,
+        role: msg.role,
         content: msg.content.map((item) => {
           if (item.type === 'tool_result' && typeof item.content !== 'string') {
             return {
-              ...item,
+              type: item.type,
+              tool_use_id: item.tool_use_id,
               content: item.content?.filter((c) => c.type !== 'image'),
             };
           }
@@ -99,50 +104,26 @@ const promptForAction = async (
         }),
       };
     }
-    return msg;
+    // For text messages, just keep role and content
+    return { role: msg.role, content: msg.content };
   });
 
   try {
-    const message = await anthropic.beta.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: historyWithoutImages,
-      tools: [
-        {
-          type: 'computer_20241022',
-          name: 'computer',
-          display_width_px: getAiScaledScreenDimensions().width,
-          display_height_px: getAiScaledScreenDimensions().height,
-          display_number: 1,
-        },
-        {
-          name: 'finish_run',
-          description:
-            'Call this function when you have achieved the goal of the task.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              success: {
-                type: 'boolean',
-                description: 'Whether the task was successful',
-              },
-              error: {
-                type: 'string',
-                description: 'The error message if the task was not successful',
-              },
-            },
-            required: ['success'],
-          },
-        },
-      ],
-      betas: ['computer-use-2024-10-22'],
-    });
+    const llmService = serviceRegistry.get<AnthropicService>('anthropic');
+    if (!llmService) {
+      throw new Error('LLM service not found in registry');
+    }
 
-    return { content: message.content, role: message.role }; // Ensure this line is present
+    const message = await llmService.createVisionMessage(
+      systemPrompt,
+      historyWithoutImages,
+      [],
+      getAiScaledScreenDimensions
+    );
+    return message;
   } catch (error) {
     log.error('Error in promptForAction:', error);
-    log.error('Message stack:', historyWithoutImages);
+    log.error('Message stack:', JSON.stringify(historyWithoutImages, null, 2));
     throw error;
   }
 };

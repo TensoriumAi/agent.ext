@@ -160,3 +160,23 @@
     - Enhance error handling and user feedback for plugin operations
     - Consider adding a plugin marketplace or repository feature
     - Continue testing and refining the Plugin System
+
+## Iteration 11: Service Registry Implementation
+
+1. Created `src/main/serviceRegistry.ts` to manage and provide access to various services
+2. Implemented `ServiceRegistry` class with methods to register, get, and retrieve all services
+3. Updated `src/main/main.ts` to use the new service registry:
+   - Registered computerVision and anthropic services
+   - Added logging for registered services
+   - Implemented an IPC handler to get services from the renderer process
+4. Modified `src/main/store/anthropic.ts` to register itself with the service registry
+5. Updated type definitions in `serviceRegistry.ts` to include `AnthropicService`
+6. Removed manual registration of anthropic service from `main.ts`
+7. Tested service registration and logging functionality
+8. Next steps:
+   - Ensure all services are properly registered and accessible
+   - Implement usage of registered services throughout the application
+   - Consider adding more services to the registry as needed
+   - Update renderer process to utilize the new service registry system
+   - Continue refining and testing the service registry implementation
+   - Move on to the next planned enhancement or address any remaining issues
